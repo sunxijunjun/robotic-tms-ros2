@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/w502/tms_ws/install/tms_robot_ui/include/**",
+        "/home/w502/tms_ws/install/tms_robot_interfaces/include/**",
+        "/home/w502/tms_ws/install/robotiq_ft_sensor_hardware/include/**",
+        "/home/w502/tms_ws/install/robotiq_ft_sensor_interfaces/include/**",
+        "/opt/ros/jazzy/include/**",
+        "/home/w502/tms_ws/src/rq_fts_ros2_driver/robotiq_ft_sensor_hardware/include/**",
+        "/home/w502/tms_ws/src/tms_robot/tms_robot_control/include/**",
+        "/home/w502/tms_ws/src/tms_robot/tms_robot_hardware/include/**",
+        "/home/w502/tms_ws/src/tms_robot/tms_robot_ui/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ros2",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++17"
+    }
+  ],
+  "version": 4
+}

@@ -1,0 +1,22 @@
+{
+    "ROS2.distro": "jazzy",
+    "python.autoComplete.extraPaths": [
+        "/home/w502/tms_ws/build/uc4_adc_driver",
+        "/home/w502/tms_ws/install/uc4_adc_driver/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/install/tms_robot_interfaces/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/build/tms_robot_bringup",
+        "/home/w502/tms_ws/install/tms_robot_bringup/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/install/robotiq_ft_sensor_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/w502/tms_ws/build/uc4_adc_driver",
+        "/home/w502/tms_ws/install/uc4_adc_driver/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/install/tms_robot_interfaces/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/build/tms_robot_bringup",
+        "/home/w502/tms_ws/install/tms_robot_bringup/lib/python3.12/site-packages",
+        "/home/w502/tms_ws/install/robotiq_ft_sensor_interfaces/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "cmake.ignoreCMakeListsMissing": true
+}
