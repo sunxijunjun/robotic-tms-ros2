@@ -95,6 +95,8 @@ BT::NodeStatus ApproachTcpZForceBandNode::onStart() {
   }
   total_motion_abs_ = 0.0;
   step_count_ = 0;
+  has_last_step_ = false;
+  no_progress_count_ = 0;
   step_state_ = StepState::IDLE;
   start_time_ = std::chrono::steady_clock::now();
   recovery_exit_reason_ = "RECOVERY_RETRACT";
@@ -116,6 +118,7 @@ BT::NodeStatus ApproachTcpZForceBandNode::onStart() {
 bool ApproachTcpZForceBandNode::startTcpStep(double step) {
   std::string error_msg;
   auto moveit_context = get_moveit_context_from_blackboard(config());
+  double start_z = 0.0;
   if (!moveit_context->startMoveTcpRelativeZ(planning_group_,
     tcp_link_,
     step,
@@ -124,13 +127,41 @@ bool ApproachTcpZForceBandNode::startTcpStep(double step) {
     eef_step_,
     min_fraction_,
     avoid_collisions_,
-    error_msg)) {
+    error_msg,
+    &start_z)) {
     RCLCPP_ERROR(rclcpp::get_logger("ApproachTcpZForceBandNode"),
       "Failed to start TCP Z step: %s",
       error_msg.c_str());
     return false;
   }
-  total_motion_abs_ += std::abs(step);
+  if (has_last_step_) {
+    // Budget counts measured world-Z motion, not commanded steps, so phantom
+    // no-op steps (controller reports success, arm never moves) cannot burn it.
+    const double measured = std::abs(start_z - last_step_start_z_);
+    total_motion_abs_ += measured;
+    // 0.5 factor tolerates TCP tilt (world-Z projection) and encoder noise.
+    if (measured < 0.5 * std::abs(last_cmd_step_)) {
+      ++no_progress_count_;
+      if (no_progress_count_ >= kMaxNoProgressSteps) {
+        RCLCPP_ERROR(rclcpp::get_logger("ApproachTcpZForceBandNode"),
+          "Arm is not physically moving: %d consecutive steps produced no measurable TCP motion "
+          "(last measured %.6f m for commanded %.6f m). Robot/driver layer is not executing motion. Aborting approach.",
+          no_progress_count_,
+          measured,
+          std::abs(last_cmd_step_));
+        moveit_context->stopMotion();
+        publishApproachSummary("ARM_NOT_MOVING");
+        step_state_ = StepState::IDLE;
+        return false;
+      }
+    }
+    else {
+      no_progress_count_ = 0;
+    }
+  }
+  last_step_start_z_ = start_z;
+  last_cmd_step_ = step;
+  has_last_step_ = true;
   ++step_count_;
   step_state_ = StepState::MOVING;
   return true;

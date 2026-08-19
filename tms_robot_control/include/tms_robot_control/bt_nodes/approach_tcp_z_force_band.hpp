@@ -38,6 +38,13 @@ private:
   double recovery_retract_distance_{-0.050};
   double total_motion_abs_{0.0};
   int step_count_{0};
+  // Verified-motion tracking: world Z at start of previous step, to detect
+  // steps that report success without the arm physically moving.
+  static constexpr int kMaxNoProgressSteps = 10;
+  double last_step_start_z_{0.0};
+  double last_cmd_step_{0.0};
+  bool has_last_step_{false};
+  int no_progress_count_{0};
   StepState step_state_{StepState::IDLE};
   std::chrono::steady_clock::time_point start_time_;
   void publishApproachSummary(const std::string & exit_reason);

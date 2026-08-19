@@ -41,12 +41,19 @@ bool MoveItContext::checkSystemReady(const std::string & planning_group, const s
   return true;
 }
 
-bool MoveItContext::startMoveToNamedTarget(const std::string & planning_group, const std::string & target, std::string & error_msg) {
+bool MoveItContext::startMoveToNamedTarget(const std::string & planning_group, const std::string & target, double velocity_scale, double acceleration_scale, std::string & error_msg) {
   auto * move_group = getMoveGroup(planning_group, error_msg);
   if (!move_group) {
     return false;
   }
-  RCLCPP_INFO(node_->get_logger(), "Planning move to named target '%s' using planning group '%s'", target.c_str(), planning_group.c_str());
+  RCLCPP_INFO(node_->get_logger(), "Planning move to named target '%s' using planning group '%s' (vel=%.2f, acc=%.2f)", target.c_str(), planning_group.c_str(), velocity_scale, acceleration_scale);
+  // Deterministic PTP: same path every run, no random OMPL detours with the heavy coil.
+  move_group->setPlanningPipelineId("pilz_industrial_motion_planner");
+  move_group->setPlannerId("PTP");
+  // Shared interface: clear any explicit start state left by relative-Z steps.
+  move_group->setStartStateToCurrentState();
+  move_group->setMaxVelocityScalingFactor(velocity_scale);
+  move_group->setMaxAccelerationScalingFactor(acceleration_scale);
   move_group->setNamedTarget(target);
   const auto plan_result = move_group->plan(active_plan_);
   if (plan_result.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
@@ -87,6 +94,11 @@ bool MoveItContext::startMoveToFrameOffsetPose(const std::string & planning_grou
     if (!tcp_link.empty()) {
       move_group->setEndEffectorLink(tcp_link);
     }
+    // Deterministic PTP: IK seeded from current state, no configuration flips.
+    move_group->setPlanningPipelineId("pilz_industrial_motion_planner");
+    move_group->setPlannerId("PTP");
+    // Shared interface: clear any explicit start state left by relative-Z steps.
+    move_group->setStartStateToCurrentState();
     move_group->setMaxVelocityScalingFactor(velocity_scale);
     move_group->setMaxAccelerationScalingFactor(acceleration_scale);
     move_group->setPoseTarget(target_pose, tcp_link);
@@ -220,6 +232,11 @@ bool MoveItContext::startMoveToPoseStamped(const std::string & planning_group,
     if (!tcp_link.empty()) {
       move_group->setEndEffectorLink(tcp_link);
     }
+    // Deterministic PTP: IK seeded from current state, no configuration flips.
+    move_group->setPlanningPipelineId("pilz_industrial_motion_planner");
+    move_group->setPlannerId("PTP");
+    // Shared interface: clear any explicit start state left by relative-Z steps.
+    move_group->setStartStateToCurrentState();
     move_group->setMaxVelocityScalingFactor(velocity_scale);
     move_group->setMaxAccelerationScalingFactor(acceleration_scale);
     move_group->setPlanningTime(planning_time);
@@ -257,7 +274,8 @@ bool MoveItContext::startMoveTcpRelativeZ(const std::string & planning_group,
   double eef_step,
   double min_fraction,
   bool avoid_collisions,
-  std::string & error_msg) {
+  std::string & error_msg,
+  double * out_start_world_z) {
   auto * move_group = getMoveGroup(planning_group, error_msg);
   if (!move_group) {
     return false;
@@ -273,7 +291,6 @@ bool MoveItContext::startMoveTcpRelativeZ(const std::string & planning_group,
     }
     move_group->setMaxVelocityScalingFactor(velocity_scale);
     move_group->setMaxAccelerationScalingFactor(acceleration_scale);
-    move_group->setStartStateToCurrentState();
     const std::string planning_frame = move_group->getPlanningFrame();
     // Important:
     // Shared MoveGroupInterface may retain a previous pose reference frame.
@@ -289,7 +306,15 @@ bool MoveItContext::startMoveTcpRelativeZ(const std::string & planning_group,
       error_msg = "TCP link '" + tcp_link + "' not found in robot model";
       return false;
     }
+    // Plan from the exact snapshot the waypoint is computed from. If the service
+    // used its own (possibly fresher) state instead, a 0.5 mm step can collapse
+    // into a 1-point no-op trajectory whenever the two snapshots differ by ~one
+    // step — the phantom-step failure seen in the 08:38/09:27 demo runs.
+    move_group->setStartState(*current_state);
     const Eigen::Isometry3d current_eigen = current_state->getGlobalLinkTransform(tcp_link);
+    if (out_start_world_z) {
+      *out_start_world_z = current_eigen.translation().z();
+    }
     Eigen::Isometry3d relative_move = Eigen::Isometry3d::Identity();
     // Positive distance means +local TCP Z.
     relative_move.translation() = Eigen::Vector3d(0.0, 0.0, distance_m);
@@ -318,7 +343,7 @@ bool MoveItContext::startMoveTcpRelativeZ(const std::string & planning_group,
     std::vector<geometry_msgs::msg::Pose> waypoints;
     waypoints.push_back(target_pose);
     moveit_msgs::msg::RobotTrajectory trajectory;
-    const double fraction = move_group->computeCartesianPath(waypoints, eef_step, trajectory, avoid_collisions);
+    double fraction = move_group->computeCartesianPath(waypoints, eef_step, trajectory, avoid_collisions);
     if (fraction < min_fraction) {
       error_msg = "Cartesian TCP Z path fraction too low: " +
         std::to_string(fraction) +
@@ -327,7 +352,58 @@ bool MoveItContext::startMoveTcpRelativeZ(const std::string & planning_group,
       RCLCPP_ERROR(node_->get_logger(), "%s", error_msg.c_str());
       return false;
     }
-    RCLCPP_INFO(node_->get_logger(), "Cartesian TCP Z path computed successfully: %.2f%% covered", fraction * 100.0);
+    {
+      const auto & pts = trajectory.joint_trajectory.points;
+      const double dur = pts.empty() ? 0.0 :
+        rclcpp::Duration(pts.back().time_from_start).seconds();
+      if (pts.size() <= 1 || dur <= 0.0) {
+        // In some postures a sub-millimeter step maps to joint motion below
+        // TOTG's 0.001 rad min_angle_change; the Cartesian service then prunes
+        // every waypoint and returns a 1-point, zero-duration no-op while still
+        // reporting fraction=100% (the cycle-35 phantom-step failure). The
+        // joints execute these amplitudes fine, so build the 2-point joint
+        // trajectory ourselves: IK seeded from the current state, timing from
+        // the scaled joint velocity limits with a 0.3 s floor.
+        RCLCPP_WARN(node_->get_logger(),
+          "Cartesian TCP Z step of %.6f m collapsed to a no-op trajectory "
+          "(joint motion below time-parameterization threshold in this posture); "
+          "building 2-point joint trajectory directly", distance_m);
+        moveit::core::RobotState target_state(*current_state);
+        const moveit::core::JointModelGroup * jmg =
+          target_state.getJointModelGroup(planning_group);
+        if (!jmg || !target_state.setFromIK(jmg, target_eigen, tcp_link, 0.1)) {
+          error_msg = "IK failed for direct TCP relative Z step fallback";
+          RCLCPP_ERROR(node_->get_logger(), "%s", error_msg.c_str());
+          return false;
+        }
+        trajectory_msgs::msg::JointTrajectoryPoint p0, p1;
+        current_state->copyJointGroupPositions(jmg, p0.positions);
+        target_state.copyJointGroupPositions(jmg, p1.positions);
+        double duration_sec = 0.3;
+        const auto & var_names = jmg->getVariableNames();
+        for (size_t i = 0; i < var_names.size(); ++i) {
+          const auto & bounds =
+            current_state->getRobotModel()->getVariableBounds(var_names[i]);
+          const double dq = std::abs(p1.positions[i] - p0.positions[i]);
+          if (bounds.velocity_bounded_ && bounds.max_velocity_ > 0.0 && velocity_scale > 0.0) {
+            duration_sec = std::max(duration_sec, dq / (bounds.max_velocity_ * velocity_scale));
+          }
+        }
+        p0.velocities.assign(p0.positions.size(), 0.0);
+        p1.velocities.assign(p1.positions.size(), 0.0);
+        p0.time_from_start = rclcpp::Duration::from_seconds(0.0);
+        p1.time_from_start = rclcpp::Duration::from_seconds(duration_sec);
+        trajectory = moveit_msgs::msg::RobotTrajectory();
+        trajectory.joint_trajectory.joint_names = var_names;
+        trajectory.joint_trajectory.points = {p0, p1};
+        fraction = 1.0;
+      }
+    }
+    const auto & points = trajectory.joint_trajectory.points;
+    const double traj_duration_sec = points.empty() ? 0.0 :
+      rclcpp::Duration(points.back().time_from_start).seconds();
+    RCLCPP_INFO(node_->get_logger(), "Cartesian TCP Z path computed successfully: %.2f%% covered, %zu points, duration %.3f s",
+      fraction * 100.0, points.size(), traj_duration_sec);
     active_plan_ = moveit::planning_interface::MoveGroupInterface::Plan();
     active_plan_.trajectory = trajectory;
     active_planning_group_ = planning_group;

@@ -19,7 +19,7 @@ public:
   };
   explicit MoveItContext(rclcpp::Node::SharedPtr node);
   bool checkSystemReady(const std::string & planning_group, const std::string & target, std::string & error_msg);
-  bool startMoveToNamedTarget(const std::string & planning_group, const std::string & target, std::string & error_msg);
+  bool startMoveToNamedTarget(const std::string & planning_group, const std::string & target, double velocity_scale, double acceleration_scale, std::string & error_msg);
   bool startMoveToFrameOffsetPose(const std::string & planning_group, 
     const std::string & tcp_link, 
     const std::string & reference_frame, 
@@ -58,7 +58,8 @@ public:
     double eef_step,
     double min_fraction,
     bool avoid_collisions,
-    std::string & error_msg);
+    std::string & error_msg,
+    double * out_start_world_z = nullptr);
   bool getCurrentAllowedCollisionMatrix(moveit_msgs::msg::AllowedCollisionMatrix & acm,
     std::string & error_msg);
   bool setAllowedCollision(const std::string & link1, 
