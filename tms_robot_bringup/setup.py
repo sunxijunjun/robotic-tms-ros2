@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
           'tcp_pose_publisher = tms_robot_bringup.tcp_pose_publisher:main',
+          'demo_operator = tms_robot_bringup.demo_operator:main',
         ],
     },
 )
