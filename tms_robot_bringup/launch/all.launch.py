@@ -1,6 +1,7 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, RegisterEventHandler, Shutdown
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -48,6 +49,18 @@ def generate_launch_description():
             description="UR calibration YAML for the real robot.",
         ),
     ]
+    ui_node = Node(
+        package="tms_robot_ui",
+        executable="tms_robot_ui",
+        output="screen",
+        parameters=[
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.planning_pipelines,
+        ],
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -87,17 +100,10 @@ def generate_launch_description():
                     moveit_config.planning_pipelines,
                 ],
             ),
-            Node(
-                package="tms_robot_ui",
-                executable="tms_robot_ui",
-                output="screen",
-                parameters=[
-                    moveit_config.robot_description,
-                    moveit_config.robot_description_semantic,
-                    moveit_config.robot_description_kinematics,
-                    moveit_config.planning_pipelines,
-                ],
-            ),
+            ui_node,
+            # Closing the control panel window shuts the whole stack down.
+            RegisterEventHandler(OnProcessExit(target_action=ui_node,
+                on_exit=[Shutdown(reason="control panel closed")])),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     os.path.join(
