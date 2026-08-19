@@ -145,7 +145,14 @@ void RosBridge::startTask(const QString & task_name, double tcp_offset_z_mm, dou
 
 void RosBridge::cancelTask() {
   if (!current_goal_handle_ || !task_active_) {
-    emit logMessage("No active task to cancel");
+    // Goal was sent by someone else (e.g. demo_operator): cancel whatever the
+    // executor is running instead of only the UI's own goal handle.
+    action_client_->async_cancel_all_goals(
+      [this](rclcpp_action::Client<ExecuteTask>::CancelResponse::SharedPtr response) {
+        emit logMessage(response && !response->goals_canceling.empty()
+          ? "Cancel accepted by action server" : "No active task to cancel");
+      });
+    emit logMessage("Cancel requested (all goals)");
     return;
   }
   if (cancel_in_progress_) {

@@ -11,6 +11,7 @@
 #include <QTimer>
 #include <QDoubleSpinBox>
 #include <QDomDocument>
+#include <QProcess>
 #include <QList>
 #include <QMap>
 #include <QString>
@@ -64,6 +65,8 @@ private:
   void loadSelectedTree();
   QString selectedTaskName() const;
   QString selectedTreePath() const;
+  QString treePathFor(const QString & task) const;
+  QString loaded_tree_task_;
   void loadTreeIntoWidget(const QString & xml_path);
   QTreeWidgetItem * buildTreeItemFromDom(const class QDomElement & element);
   void setItemColor(QTreeWidgetItem * item, const QString & status);
@@ -91,6 +94,8 @@ private:
   QMap<QString, QTreeWidgetItem *> node_items_;
   QCheckBox * show_developer_tasks_checkbox_{nullptr};
   void populateTaskSelector(bool show_developer_tasks);
+  void startDemoOperator();
+  QProcess * demo_process_{nullptr};
   RollingPlotWidget * force_plot_{nullptr};
   RollingPlotWidget * distance_plot_{nullptr};
 };
