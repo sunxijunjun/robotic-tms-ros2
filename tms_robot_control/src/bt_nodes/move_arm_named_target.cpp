@@ -7,7 +7,10 @@ MoveArmNamedTargetNode::MoveArmNamedTargetNode(const std::string & name, const B
 BT::PortsList MoveArmNamedTargetNode::providedPorts() {
   return {
     BT::InputPort<std::string>("target", "SRDF named target"),
-    BT::InputPort<std::string>("planning_group", std::string("ur_arm"), "MoveIt planning group")
+    BT::InputPort<std::string>("planning_group", std::string("ur_arm"), "MoveIt planning group"),
+    // 0.1 matches the previous MoveGroupInterface default, so existing trees keep their speed.
+    BT::InputPort<double>("velocity_scale", 0.1, "Max velocity scaling factor"),
+    BT::InputPort<double>("acceleration_scale", 0.1, "Max acceleration scaling factor")
   };
 }
 
@@ -28,9 +31,11 @@ BT::NodeStatus MoveArmNamedTargetNode::onStart() {
   }
   target_name_ = target.value();
   planning_group_ = planning_group.value();
+  const double velocity_scale = getInput<double>("velocity_scale").value();
+  const double acceleration_scale = getInput<double>("acceleration_scale").value();
   std::string error_msg;
   auto moveit_context = get_moveit_context_from_blackboard(config());
-  if (!moveit_context->startMoveToNamedTarget(planning_group_, target_name_, error_msg)) {
+  if (!moveit_context->startMoveToNamedTarget(planning_group_, target_name_, velocity_scale, acceleration_scale, error_msg)) {
     RCLCPP_ERROR(rclcpp::get_logger("MoveArmNamedTargetNode"), "%s", error_msg.c_str());
     return BT::NodeStatus::FAILURE;
   }

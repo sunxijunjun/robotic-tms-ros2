@@ -21,13 +21,16 @@
         <joint name="ur10e_wrist_2_joint" value="0"/>
         <joint name="ur10e_wrist_3_joint" value="0"/>
     </group_state>
+    <!-- 'ready' = operator-approved staging pose: the above-head work pose with
+         the TCP lifted 0.40 m world-vertical (captured via IK, same elbow-up
+         configuration as the work poses, so no branch flip on the way back). -->
     <group_state name="ready" group="ur_arm">
-        <joint name="ur10e_elbow_joint" value="-1.5708"/>
-        <joint name="ur10e_shoulder_lift_joint" value="-1.5708"/>
-        <joint name="ur10e_shoulder_pan_joint" value="0"/>
-        <joint name="ur10e_wrist_1_joint" value="-1.5708"/>
-        <joint name="ur10e_wrist_2_joint" value="1.5708"/>
-        <joint name="ur10e_wrist_3_joint" value="0"/>
+        <joint name="ur10e_elbow_joint" value="1.8037"/>
+        <joint name="ur10e_shoulder_lift_joint" value="-2.3482"/>
+        <joint name="ur10e_shoulder_pan_joint" value="2.2924"/>
+        <joint name="ur10e_wrist_1_joint" value="-1.6932"/>
+        <joint name="ur10e_wrist_2_joint" value="-0.9580"/>
+        <joint name="ur10e_wrist_3_joint" value="-0.6308"/>
     </group_state>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="d405" link2="fts300s" reason="Adjacent"/>
