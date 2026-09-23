@@ -29,6 +29,7 @@ from rclpy.executors import ExternalShutdownException
 from action_msgs.msg import GoalStatus
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from std_msgs.msg import String
 
 from robotiq_ft_sensor_interfaces.srv import SensorAccessor
 from tms_robot_interfaces.action import ExecuteTask
@@ -51,6 +52,10 @@ PAUSE_BETWEEN_TASKS_SEC = 2.0
 PAUSE_BETWEEN_CYCLES_SEC = 5.0
 SEARCH_MAX_ATTEMPTS = 5   # first descent step waits on the camera pose
 TREATMENT_MAX_ATTEMPTS = 3  # each retry re-descends, so the approach budget resets
+# A move that fails while this BT node is active means the camera never sent a
+# target: ask the camera script to save that frame for retraining.
+WAIT_TARGET_NODE = 'wait_tcp_target_pose'
+MISSED_FRAME_TOPIC = '/camera/save_missed_frame'
 
 
 LOG_DIR = os.path.expanduser('~/demo_operator_logs')
@@ -69,7 +74,9 @@ class DemoOperator(Node):
         super().__init__('demo_operator')
         self.client = ActionClient(self, ExecuteTask, 'execute_task')
         self.zero_client = self.create_client(SensorAccessor, 'robotiq_ft_sensor_acc')
+        self.missed_pub = self.create_publisher(String, MISSED_FRAME_TOPIC, 10)
         self._last_node = None
+        self.cycle = 0
 
     # console + file in one call
     def info(self, msg):
@@ -110,6 +117,10 @@ class DemoOperator(Node):
         result = wrapped.result
         self.info(f'Task {name}: success={result.success} '
                   f'({result.message}) [{time.monotonic() - t0:.1f}s]')
+        if not result.success and self._last_node == WAIT_TARGET_NODE:
+            tag = f'cycle{self.cycle}_offset{tcp_offset_z_m * 1000:.0f}mm'
+            self.missed_pub.publish(String(data=tag))
+            self.info(f'Camera sent no target: requested missed-frame capture ({tag})')
         return result.success
 
     def on_feedback(self, fb):
@@ -183,19 +194,18 @@ def main():
     rclpy.init()
     demo = DemoOperator()
     demo.info(f'Logging to {log_path}')
-    cycle = 0
     try:
         while True:
             if not demo.client.wait_for_server(timeout_sec=10.0):
                 demo.error('execute_task action server not available, retrying...')
                 continue
-            cycle += 1
-            demo.info(f'=== Demo cycle {cycle} starting ===')
+            demo.cycle += 1
+            demo.info(f'=== Demo cycle {demo.cycle} starting ===')
             ok = demo.run_cycle()
             # ponytail: no scripted error recovery -- the executor already
             # retracts and restores collision state on failure/cancel, and
             # the next cycle starts from move_arm_ready anyway.
-            demo.info(f'=== Demo cycle {cycle} {"complete" if ok else "failed"} ===')
+            demo.info(f'=== Demo cycle {demo.cycle} {"complete" if ok else "failed"} ===')
             time.sleep(PAUSE_BETWEEN_CYCLES_SEC)
     except (KeyboardInterrupt, ExternalShutdownException):
         # SIGINT from terminal or the UI Cancel button; rclpy may already be down
