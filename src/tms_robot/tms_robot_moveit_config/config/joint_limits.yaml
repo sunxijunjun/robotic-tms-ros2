@@ -1,0 +1,61 @@
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+
+# For beginners, we downscale velocity and acceleration limits.
+# You can always specify higher scaling factors (<= 1.0) in your motion requests.  # Increase the values below to 1.0 to always move at maximum speed.
+default_velocity_scaling_factor: 0.1
+default_acceleration_scaling_factor: 0.1
+
+# Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
+# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+# Position limits below restrict the PLANNING model to one turn (+/- pi) on the
+# multi-turn UR joints (URDF allows +/- 2*pi). This forces IK to pick the joint
+# solution nearest to zero instead of one a full revolution away, so PTP moves
+# take the minimal path instead of spinning ~359 degrees. Driver limits are untouched.
+# If planning ever fails with "start state out of bounds", a joint is physically
+# parked outside +/- pi: jog it back (or widen that joint's bounds here).
+joint_limits:
+  ur10e_elbow_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+  ur10e_shoulder_lift_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0943951023931953
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_position_limits: true
+    min_position: -3.1415926535897931
+    max_position: 3.1415926535897931
+  ur10e_shoulder_pan_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0943951023931953
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_position_limits: true
+    min_position: -3.1415926535897931
+    max_position: 3.1415926535897931
+  ur10e_wrist_1_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_position_limits: true
+    min_position: -3.1415926535897931
+    max_position: 3.1415926535897931
+  ur10e_wrist_2_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_position_limits: true
+    min_position: -3.1415926535897931
+    max_position: 3.1415926535897931
+  ur10e_wrist_3_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_position_limits: true
+    min_position: -3.1415926535897931
+    max_position: 3.1415926535897931

@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="windowTitle">
+   <string>Robot Console UI</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QWidget" name="top_row_widget" native="true">
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QGroupBox" name="camera_group">
+         <property name="title">
+          <string>Camera</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_2">
+          <item>
+           <widget class="QWidget" name="camera_container" native="true">
+            <property name="minimumSize">
+             <size>
+              <width>640</width>
+              <height>480</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="rviz_group">
+         <property name="title">
+          <string>RVIZ</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QWidget" name="rviz_container" native="true">
+            <property name="minimumSize">
+             <size>
+              <width>640</width>
+              <height>480</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="bottom_row_widget" native="true">
+      <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="5,2">
+       <item>
+        <widget class="QGroupBox" name="tasks_group">
+         <property name="title">
+          <string>Tasks</string>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="3,1,7">
+          <item>
+           <widget class="QWidget" name="task_controls_widget" native="true">
+            <layout class="QVBoxLayout" name="verticalLayout_4">
+             <item>
+              <widget class="QCheckBox" name="show_developer_tasks_checkbox">
+               <property name="text">
+                <string>Show developer tasks</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="task_selector"/>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="tcp_offset_layout">
+               <item>
+                <widget class="QLabel" name="tcp_offset_label">
+                 <property name="text">
+                  <string>TCP Z Offset</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="tcp_offset_spinbox">
+                 <property name="suffix">
+                  <string> mm</string>
+                 </property>
+                 <property name="decimals">
+                  <number>1</number>
+                 </property>
+                 <property name="minimum">
+                  <double>30.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>100.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>5.000000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>100.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="distance_guard_layout">
+               <item>
+                <widget class="QLabel" name="distance_guard_label">
+                 <property name="text">
+                  <string>UC4 Min Distance</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="distance_guard_spinbox">
+                 <property name="suffix">
+                  <string> mm</string>
+                 </property>
+                 <property name="decimals">
+                  <number>0</number>
+                 </property>
+                 <property name="minimum">
+                  <double>25.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>150.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>1.000000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>63.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="force_mode_layout">
+               <item>
+                <widget class="QLabel" name="force_mode_label">
+                 <property name="text">
+                  <string>Force Mode</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="force_mode_combo">
+                 <item>
+                  <property name="text">
+                   <string>Light Touch</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Heavy Press</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="treatment_duration_layout">
+               <item>
+                <widget class="QLabel" name="treatment_duration_label">
+                 <property name="text">
+                  <string>Treatment Time</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="treatment_duration_spinbox">
+                 <property name="suffix">
+                  <string> sec</string>
+                 </property>
+                 <property name="decimals">
+                  <number>0</number>
+                 </property>
+                 <property name="minimum">
+                  <double>10.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>300.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>10.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="action_layout">
+            <item>
+             <widget class="QPushButton" name="zero_button">
+              <property name="styleSheet">
+               <string notr="true">background-color: rgb(255, 190, 111);</string>
+              </property>
+              <property name="text">
+               <string>Zero
+FTS</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="start_button">
+              <property name="styleSheet">
+               <string notr="true">background-color: rgb(143, 240, 164);</string>
+              </property>
+              <property name="text">
+               <string>Start
+Task</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="cancel_button">
+              <property name="styleSheet">
+               <string notr="true">background-color: rgb(246, 97, 81);</string>
+              </property>
+              <property name="text">
+               <string>Cancel
+Task</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QWidget" name="task_status_widget" native="true">
+            <layout class="QVBoxLayout" name="verticalLayout_5">
+             <item>
+              <layout class="QHBoxLayout" name="sensor_value_layout">
+               <item>
+                <widget class="QLabel" name="force_label">
+                 <property name="text">
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force sensor Z: -&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="distance_label">
+                 <property name="text">
+                  <string>Distance sensor: -</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="sensor_plot_layout"/>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="node_state_layout">
+               <item>
+                <widget class="QLabel" name="active_node_label">
+                 <property name="text">
+                  <string>Active Node: -</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="state_label">
+                 <property name="text">
+                  <string>State: IDLE</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="treatment_status_label">
+               <property name="text">
+                <string>Treatment: -</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <layout class="QVBoxLayout" name="bt_log_layout">
+         <item>
+          <widget class="QGroupBox" name="behavior_tree_group">
+           <property name="title">
+            <string>Behavior Tree</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_6">
+            <item>
+             <widget class="QTreeWidget" name="bt_tree_widget">
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="log_group">
+           <property name="title">
+            <string>Log</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_7">
+            <item>
+             <widget class="QTextEdit" name="log_text"/>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1370</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

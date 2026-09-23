@@ -1,0 +1,543 @@
+#include "tms_robot_control/task_executor_node.hpp"
+
+#include <algorithm>
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include <chrono>
+#include <fstream>
+#include <functional>
+#include <sstream>
+#include <thread>
+#include "tms_robot_control/bt_nodes/approach_tcp_z_force_band.hpp"
+#include "tms_robot_control/bt_nodes/check_system_ready.hpp"
+#include "tms_robot_control/bt_nodes/check_treatment_inputs_fresh.hpp"
+#include "tms_robot_control/bt_nodes/move_arm_named_target.hpp"
+#include "tms_robot_control/bt_nodes/move_tcp_relative_z.hpp"
+#include "tms_robot_control/bt_nodes/move_to_frame_offset_pose.hpp"
+#include "tms_robot_control/bt_nodes/move_to_tcp_target_pose_offset.hpp"
+#include "tms_robot_control/bt_nodes/report_status.hpp"
+#include "tms_robot_control/bt_nodes/sensor_snapshot.hpp"
+#include "tms_robot_control/bt_nodes/sensor_watch.hpp"
+#include "tms_robot_control/bt_nodes/set_allowed_collision.hpp"
+#include "tms_robot_control/bt_nodes/treatment_force_band_hold.hpp"
+#include "tms_robot_control/bt_nodes/verify_named_target_reached.hpp"
+#include "tms_robot_control/bt_nodes/wait_for_target_pose.hpp"
+#include "tms_robot_control/bt_nodes/wait_node.hpp"
+#include "tms_robot_control/moveit/moveit_context.hpp"
+#include "tms_robot_control/sensors/sensor_context.hpp"
+
+using namespace std::chrono_literals;
+
+namespace {
+
+class TaskRunningGuard {
+public:
+  explicit TaskRunningGuard(std::atomic<bool> & flag) : flag_(flag) {}
+  ~TaskRunningGuard() {
+    flag_ = false;
+  }
+
+private:
+  std::atomic<bool> & flag_;
+};
+
+}  // namespace
+
+TaskExecutorNode::TaskExecutorNode() : Node("robot_task_executor") {
+  register_bt_nodes();
+  bt_node_pub_ = create_publisher<tms_robot_interfaces::msg::BtNodeStatus>("bt_node_status", 10);
+  bt_state_pub_ = create_publisher<tms_robot_interfaces::msg::BtState>("bt_state", 10);
+  bt_log_pub_ = create_publisher<std_msgs::msg::String>("bt_log", 10);
+  treatment_status_pub_ = create_publisher<std_msgs::msg::String>("treatment_status", 10);
+  action_server_ = rclcpp_action::create_server<ExecuteTask>(this, "execute_task", 
+    std::bind(&TaskExecutorNode::handle_goal, this, std::placeholders::_1, std::placeholders::_2), 
+    std::bind(&TaskExecutorNode::handle_cancel, this, std::placeholders::_1), 
+    std::bind(&TaskExecutorNode::handle_accepted, this, std::placeholders::_1));
+}
+
+void TaskExecutorNode::register_bt_nodes() {
+  factory_.registerNodeType<WaitNode>("Wait");
+  factory_.registerNodeType<CheckSystemReadyNode>("CheckSystemReady");
+  factory_.registerNodeType<CheckTreatmentInputsFreshNode>("CheckTreatmentInputsFresh");
+  factory_.registerNodeType<MoveArmNamedTargetNode>("MoveArmNamedTarget");  
+  factory_.registerNodeType<MoveToFrameOffsetPoseNode>("MoveToFrameOffsetPose");
+  factory_.registerNodeType<MoveToTcpTargetPoseOffsetNode>("MoveToTcpTargetPoseOffset");
+  factory_.registerNodeType<MoveTcpRelativeZNode>("MoveTcpRelativeZ");
+  factory_.registerNodeType<ApproachTcpZForceBandNode>("ApproachTcpZForceBand");
+  factory_.registerNodeType<SensorSnapshotNode>("SensorSnapshot");
+  factory_.registerNodeType<SensorWatchNode>("SensorWatch");
+  factory_.registerNodeType<SetAllowedCollisionNode>("SetAllowedCollision");
+  factory_.registerNodeType<TreatmentForceBandHoldNode>("TreatmentForceBandHold");
+  factory_.registerNodeType<VerifyNamedTargetReachedNode>("VerifyNamedTargetReached");
+  factory_.registerNodeType<WaitForTargetPoseNode>("WaitForTargetPose");
+  factory_.registerBuilder<ReportStatusNode>("ReportStatus", [this](const std::string & name, const BT::NodeConfig & config) {
+    return std::make_unique<ReportStatusNode>(name, config, [this](const std::string & msg) {
+      publish_log(msg);
+      RCLCPP_INFO(this->get_logger(), "%s", msg.c_str()); 
+    });
+  });
+}
+
+rclcpp_action::GoalResponse TaskExecutorNode::handle_goal(const rclcpp_action::GoalUUID &, std::shared_ptr<const ExecuteTask::Goal> goal) {
+  bool expected = false;
+  if (!task_running_.compare_exchange_strong(expected, true)) {
+    RCLCPP_WARN(get_logger(), "Rejecting task '%s': another task is already running", goal->task_name.c_str());
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+  RCLCPP_INFO(get_logger(), "Received goal for task: %s", goal->task_name.c_str());
+  return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse TaskExecutorNode::handle_cancel(const std::shared_ptr<GoalHandleExecuteTask>) {
+  cancel_requested_ = true;
+  return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void TaskExecutorNode::handle_accepted(const std::shared_ptr<GoalHandleExecuteTask> goal_handle) {
+  std::thread{std::bind(&TaskExecutorNode::execute_goal, this, goal_handle) }.detach();
+}
+
+void TaskExecutorNode::execute_goal(const std::shared_ptr<GoalHandleExecuteTask> goal_handle) {
+  TaskRunningGuard running_guard(task_running_);
+  const auto goal = goal_handle->get_goal();
+  cancel_requested_ = false;
+  double tcp_offset_z_m = clamp_double(goal->tcp_offset_z_m, kMinTcpOffsetZ, kMaxTcpOffsetZ, "tcp_offset_z_m");
+  double treatment_duration_sec = clamp_double(goal->treatment_duration_sec, kMinTreatmentDurationSec, kMaxTreatmentDurationSec, "treatment_duration_sec");
+  double min_distance_m = clamp_double(goal->min_distance_m, kMinDistanceGuardM, kMaxDistanceGuardM, "min_distance_m");
+  const bool enable_distance_guard = goal->enable_distance_guard;
+  std::string force_mode = goal->force_mode;
+  if (force_mode.empty()) {
+    force_mode = "LIGHT"; 
+  }
+  double min_force_z = -8.0;
+  double max_force_z = -3.0;
+  double hard_min_force_z = -25.0;
+  force_band_from_mode(force_mode, min_force_z, max_force_z, hard_min_force_z);
+  clear_treatment_status();
+  publish_task_parameter_summary(goal->task_name, 
+    tcp_offset_z_m, 
+    treatment_duration_sec, 
+    enable_distance_guard, 
+    min_distance_m, 
+    force_mode, 
+    min_force_z, 
+    max_force_z, 
+    hard_min_force_z);
+  auto feedback = std::make_shared<ExecuteTask::Feedback>();
+  auto result = std::make_shared<ExecuteTask::Result>();
+  if (!load_tree_for_task(goal->task_name, tcp_offset_z_m, treatment_duration_sec, enable_distance_guard, min_distance_m, force_mode)) {
+    restore_contact_collision_allowance();
+    set_lifecycle_state(TaskLifecycleState::FAILURE, goal->task_name, "", "Failed to load behavior tree");
+    result->success = false;
+    result->message = "Failed to load tree";
+    goal_handle->abort(result);
+    return;
+  }
+  set_lifecycle_state(TaskLifecycleState::PRECHECK, goal->task_name, "", "Checking task prerequisites");
+  std::this_thread::sleep_for(50ms);
+  set_lifecycle_state(TaskLifecycleState::RUNNING, goal->task_name, "", "Task started");
+  publish_log("Task started: " + goal->task_name);
+  while (rclcpp::ok()) {
+    if (cancel_requested_) {
+      tree_.haltTree();
+      publish_tree_status();
+      if (contact_recovery_required_.load()) {
+        publish_log("Cancel requested: performing contact recovery retract");
+        perform_contact_recovery_retract();
+      } 
+      else {
+        restore_contact_collision_allowance();
+      }
+      set_lifecycle_state(TaskLifecycleState::CANCELED, goal->task_name, "", "Task canceled");
+      publish_log("Task canceled: " + goal->task_name);
+      result->success = false;
+      result->message = "Canceled";
+      goal_handle->canceled(result);
+      return;
+    }
+    const auto status = tree_.tickOnce();
+    publish_tree_status();
+    std::string active_node;
+    BT::applyRecursiveVisitor(tree_.rootNode(), [&] (BT::TreeNode * node) {
+      const auto node_type = node->type();
+      const bool is_leaf = node_type == BT::NodeType::ACTION || node_type == BT::NodeType::CONDITION;
+      if (active_node.empty() && node->status() == BT::NodeStatus::RUNNING && is_leaf) {
+        active_node = node->name();
+      }
+    });
+    const auto state_string = status_to_string(status);
+    feedback->current_state = state_string;
+    feedback->active_node = active_node;
+    feedback->message = "Executing";
+    goal_handle->publish_feedback(feedback);
+    publish_task_state(goal->task_name, state_string, active_node, "Executing");
+    if (status == BT::NodeStatus::SUCCESS) {
+      restore_contact_collision_allowance();
+      set_lifecycle_state(TaskLifecycleState::SUCCESS, goal->task_name, "", "Task succeeded");
+      publish_log("Task succeeded: " + goal->task_name);
+      result->success = true;
+      result->message = "Task succeeded";
+      goal_handle->succeed(result);
+      return;
+    }
+    if (status == BT::NodeStatus::FAILURE) {
+      restore_contact_collision_allowance();
+      set_lifecycle_state(TaskLifecycleState::FAILURE, goal->task_name, active_node, "Task failed");
+      publish_log("Task failed: " + goal->task_name);
+      result->success = false;
+      result->message = "Task failed";
+      goal_handle->abort(result);
+      return;
+    }
+    std::this_thread::sleep_for(50ms);
+  }
+  restore_contact_collision_allowance();
+  set_lifecycle_state(TaskLifecycleState::FAULT, goal->task_name, "", "ROS shutdown during task execution");
+  result->success = false;
+  result->message = "ROS shutdown during task execution";
+  goal_handle->abort(result);
+}
+
+bool TaskExecutorNode::load_tree_for_task(const std::string & task_name, 
+  double tcp_offset_z_m, 
+  double treatment_duration_sec, 
+  bool enable_distance_guard,
+  double min_distance_m,
+  const std::string & force_mode) {
+  double min_force_z = -8.0;
+  double max_force_z = -3.0;
+  double hard_min_force_z = -25.0;
+  force_band_from_mode(force_mode, min_force_z, max_force_z, hard_min_force_z);
+  const auto xml_path = task_xml_path(task_name);
+  if (xml_path.empty()) {
+    RCLCPP_ERROR(get_logger(), "Unknown task name: %s", task_name.c_str());
+    return false;
+  }
+  std::ifstream in(xml_path);
+  if (!in.is_open()) {
+    RCLCPP_ERROR(get_logger(), "Could not open tree file: %s", xml_path.c_str());
+    return false;
+  }
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  try {
+    auto blackboard = BT::Blackboard::create();
+    contact_recovery_required_.store(false);
+    {
+      std::lock_guard<std::mutex> lock(contact_collision_mutex_);
+      contact_collision_allowed_ = false;
+    }
+    blackboard->set<std::atomic<bool> *>("cancel_requested", &cancel_requested_);
+    blackboard->set<rclcpp::Node::SharedPtr>("ros_node", this->shared_from_this());
+    blackboard->set<double>("tcp_offset_z_m", tcp_offset_z_m);
+    blackboard->set<double>("treatment_duration_sec", treatment_duration_sec);
+    blackboard->set<bool>("enable_distance_guard", enable_distance_guard);
+    blackboard->set<double>("min_distance_m", min_distance_m);
+    blackboard->set<std::atomic<bool> *>("contact_recovery_required", &contact_recovery_required_);
+    blackboard->set<std::string>("force_mode", force_mode);
+    blackboard->set<double>("min_force_z", min_force_z);
+    blackboard->set<double>("max_force_z", max_force_z);
+    blackboard->set<double>("hard_min_force_z", hard_min_force_z);
+    if (!moveit_context_) {
+      moveit_context_ = std::make_shared<MoveItContext>(this->shared_from_this());
+    }
+    blackboard->set<std::shared_ptr<MoveItContext>>("moveit_context", moveit_context_);
+    if (!sensor_context_) {
+      sensor_context_ = std::make_shared<SensorContext>(this->shared_from_this());
+    }
+    blackboard->set<std::shared_ptr<SensorContext>>("sensor_context", sensor_context_);
+    tree_ = factory_.createTreeFromText(buffer.str(), blackboard);  
+  } 
+  catch (const std::exception & e) {
+    RCLCPP_ERROR(get_logger(), "Failed to create tree: %s", e.what());
+    return false;
+  }
+  last_status_.clear();
+  publish_tree_status();
+  return true;
+}
+
+void TaskExecutorNode::publish_tree_status() {
+  BT::applyRecursiveVisitor(tree_.rootNode(), [&] (BT::TreeNode * node) {
+    const auto name = node->name();
+    const auto status = status_to_string(node->status());
+    auto it = last_status_.find(name);
+    if (it == last_status_.end() || it->second != status) {
+      last_status_[name] = status;
+      tms_robot_interfaces::msg::BtNodeStatus msg;
+      msg.node_name = name;
+      msg.node_type = node_type_to_string(node->type());
+      msg.status = status;
+      bt_node_pub_->publish(msg);
+    }
+  });
+}
+
+std::string TaskExecutorNode::task_xml_path(const std::string & task_name) const {
+  const auto share_dir = ament_index_cpp::get_package_share_directory("tms_robot_control");
+  if (task_name == "move_arm_ready") {
+    return share_dir + "/tree/move_arm_ready.xml";
+  }
+  if (task_name == "move_arm_up") {
+    return share_dir + "/tree/move_arm_up.xml";
+  }
+  if (task_name == "move_arm_above_head") {
+    return share_dir + "/tree/move_arm_above_head.xml";
+  }
+  if (task_name == "wait_for_target_pose_test") {
+    return share_dir + "/tree/wait_for_target_pose_test.xml";
+  }
+  if (task_name == "move_to_tcp_target_offset") {
+    return share_dir + "/tree/move_to_tcp_target_offset.xml";
+  }
+  if (task_name == "move_tcp_relative") {
+    return share_dir + "/tree/move_tcp_relative_z_test.xml";
+  }
+  if (task_name == "retract_from_contact") {
+    return share_dir + "/tree/retract_from_contact.xml";
+  }
+  if (task_name == "contact_treatment_test") {
+    return share_dir + "/tree/contact_treatment_test.xml";
+  }
+  if (task_name == "treatment_inputs_fresh_test") {
+    return share_dir + "/tree/treatment_inputs_fresh_test.xml"; 
+  }
+  if (task_name == "sensor_snapshot_test") {
+    return share_dir + "/tree/sensor_snapshot_test.xml"; 
+  }
+  if (task_name == "sensor_watch_test") {
+    return share_dir + "/tree/sensor_watch_test.xml"; 
+  }
+  return "";
+}
+
+std::string TaskExecutorNode::lifecycle_state_to_string(TaskLifecycleState state) const {
+  switch (state) {
+    case TaskLifecycleState::IDLE:
+      return "IDLE";
+    case TaskLifecycleState::PRECHECK:
+      return "PRECHECK";
+    case TaskLifecycleState::RUNNING:
+      return "RUNNING";
+    case TaskLifecycleState::CANCELING:
+      return "CANCELING";
+    case TaskLifecycleState::CANCELED:
+      return "CANCELED";
+    case TaskLifecycleState::SUCCESS:
+      return "SUCCESS";
+    case TaskLifecycleState::FAILURE:
+      return "FAILURE";
+    case TaskLifecycleState::FAULT:
+      return "FAULT";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+void TaskExecutorNode::set_lifecycle_state(TaskLifecycleState state, const std::string & task_name, const std::string & active_node, const std::string & message) {
+  lifecycle_state_ = state;
+  publish_task_state(task_name, lifecycle_state_to_string(state), active_node, message);
+}
+
+void TaskExecutorNode::publish_task_state(const std::string & task_name, const std::string & overall_state, const std::string & active_node, const std::string & message) {
+  tms_robot_interfaces::msg::BtState state_msg;
+  state_msg.task_name = task_name;
+  state_msg.overall_state = overall_state;
+  state_msg.active_node = active_node;
+  state_msg.message = message;
+  bt_state_pub_->publish(state_msg);
+}
+
+void TaskExecutorNode::publish_log(const std::string & message) {
+  std_msgs::msg::String msg;
+  msg.data = message;
+  bt_log_pub_->publish(msg);
+}
+
+void TaskExecutorNode::clear_treatment_status() {
+  if (!treatment_status_pub_) {
+    return;
+  }
+  std_msgs::msg::String msg;
+  msg.data = "-";
+  treatment_status_pub_->publish(msg);
+}
+
+double TaskExecutorNode::clamp_double(double value, double min_value, double max_value, const std::string & name) {
+  if (value < min_value) {
+    RCLCPP_WARN(get_logger(), "Parameter '%s' value %.6f is below minimum %.6f. Clamping to %.6f.",
+      name.c_str(),
+      value,
+      min_value,
+      min_value);
+    return min_value;
+  }
+  if (value > max_value) {
+    RCLCPP_WARN(get_logger(), "Parameter '%s' value %.6f is above maximum %.6f. Clamping to %.6f.",
+      name.c_str(),
+      value,
+      max_value,
+      max_value);
+    return max_value;
+  }
+  return value;
+}
+
+void TaskExecutorNode::publish_task_parameter_summary(const std::string & task_name,
+  double tcp_offset_z_m,
+  double treatment_duration_sec,
+  bool enable_distance_guard,
+  double min_distance_m,
+  const std::string & force_mode,
+  double min_force_z,
+  double max_force_z,
+  double hard_min_force_z) {
+  std::ostringstream ss;
+  ss
+    << "Task parameters: "
+    << "task=" << task_name
+    << ", tcp_offset_z=" << tcp_offset_z_m * 1000.0 << " mm"
+    << ", treatment_duration=" << treatment_duration_sec << " sec"
+    << ", distance_guard=" << (enable_distance_guard ? "ON" : "OFF")
+    << ", min_distance=" << min_distance_m * 1000.0 << " mm"
+    << ", force_mode=" << force_mode
+    << ", force_band=[" << min_force_z << ", " << max_force_z << "] N"
+    << ", hard_min_force_z=" << hard_min_force_z << " N";
+  const auto summary = ss.str();
+  RCLCPP_INFO(get_logger(), "%s", summary.c_str());
+  publish_log(summary);
+}
+
+void TaskExecutorNode::force_band_from_mode(const std::string & force_mode, 
+  double & min_force_z,
+  double & max_force_z,
+  double & hard_min_force_z) {
+  hard_min_force_z = -25.0;
+  if (force_mode == "HEAVY") {
+    min_force_z = -13.0;
+    max_force_z = -8.0;
+    return;
+  }
+  if (force_mode != "LIGHT") {
+    RCLCPP_WARN(get_logger(), 
+      "Unknown force_mode '%s'. Falling back to LIGHT.",
+      force_mode.c_str());
+  }
+  min_force_z = -8.0;
+  max_force_z = -3.0;
+}
+
+bool TaskExecutorNode::set_contact_collision_allowed(bool allowed) {
+  if (!moveit_context_) {
+    RCLCPP_WARN(get_logger(), "Cannot set contact collision allowance: MoveItContext is null");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(contact_collision_mutex_);
+    // Important:
+    // If contact_recovery_required_ is true and we are disabling, do not skip.
+    // The XML SetAllowedCollision node may have enabled the ACM without updating this local executor-side bookkeeping flag.
+    const bool must_force_disable = !allowed && contact_recovery_required_.load();
+    if (contact_collision_allowed_ == allowed && !must_force_disable) {
+      RCLCPP_DEBUG(get_logger(), "Contact collision allowance already %s for iccoil/dummy_head",
+        allowed ? "enabled" : "disabled");
+      return true;
+    }
+  }
+  std::string error_msg;
+  const bool ok = moveit_context_->setAllowedCollision("iccoil", "dummy_head", allowed, error_msg);
+  if (!ok) {
+    RCLCPP_WARN(get_logger(), "Failed to set iccoil/dummy_head collision allowance to %s: %s",
+      allowed ? "true" : "false",
+      error_msg.c_str());
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(contact_collision_mutex_);
+    contact_collision_allowed_ = allowed;
+  }
+  RCLCPP_INFO(get_logger(), "Contact collision allowance state updated: iccoil <-> dummy_head = %s",
+    allowed ? "true" : "false");
+  return true;
+}
+
+void TaskExecutorNode::restore_contact_collision_allowance() {
+  set_contact_collision_allowed(false);
+  contact_recovery_required_.store(false);
+}
+
+bool TaskExecutorNode::perform_contact_recovery_retract() {
+  if (!moveit_context_) {
+    RCLCPP_WARN(get_logger(), "Cannot perform contact recovery retract: MoveItContext is null");
+    return false;
+  }
+  RCLCPP_WARN(get_logger(), "Performing contact recovery retract");
+  publish_log("Performing contact recovery retract");
+  if (!set_contact_collision_allowed(true)) {
+    RCLCPP_ERROR(get_logger(), "Failed to enable contact collision allowance before recovery retract");
+    return false;
+  }
+  std::string error_msg;
+  if (!moveit_context_->startMoveTcpRelativeZ("ur_arm",
+    "ur10e_tcp",
+    kContactRecoveryRetractDistanceM,
+    kContactRecoveryVelocityScale,
+    kContactRecoveryAccelerationScale,
+    kContactRecoveryEefStep,
+    kContactRecoveryMinFraction,
+    true,
+    error_msg)) {
+    RCLCPP_ERROR(get_logger(), "Failed to start contact recovery retract: %s", error_msg.c_str());
+    restore_contact_collision_allowance();
+    return false;
+  }
+  while (rclcpp::ok()) {
+    const auto status = moveit_context_->pollMotionResult(error_msg);
+    if (status == MoveItContext::MotionStatus::RUNNING) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      continue;
+    }
+    restore_contact_collision_allowance();
+    if (status == MoveItContext::MotionStatus::SUCCESS) {
+      RCLCPP_INFO(get_logger(), "Contact recovery retract completed successfully");
+      publish_log("Contact recovery retract completed successfully");
+      return true;
+    }
+    RCLCPP_ERROR(get_logger(), "Contact recovery retract failed: %s", error_msg.c_str());
+    publish_log("Contact recovery retract failed");
+    return false;
+  }
+  restore_contact_collision_allowance();
+  return false;
+}
+
+std::string TaskExecutorNode::status_to_string(BT::NodeStatus status) const {
+  switch (status) {
+    case BT::NodeStatus::IDLE:
+      return "IDLE";
+    case BT::NodeStatus::RUNNING:
+      return "RUNNING";
+    case BT::NodeStatus::SUCCESS:
+      return "SUCCESS";
+    case BT::NodeStatus::FAILURE:
+      return "FAILURE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+std::string TaskExecutorNode::node_type_to_string(BT::NodeType type) const {
+  switch (type) {
+    case BT::NodeType::ACTION:
+      return "ACTION";
+    case BT::NodeType::CONDITION:
+      return "CONDITION";
+    case BT::NodeType::CONTROL:
+      return "CONTROL";
+    case BT::NodeType::DECORATOR:
+      return "DECORATOR";
+    case BT::NodeType::SUBTREE:
+      return "SUBTREE";
+    default:
+      return "UNKNOWN";
+  }
+}

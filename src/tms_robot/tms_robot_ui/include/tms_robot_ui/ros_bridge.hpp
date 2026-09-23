@@ -1,0 +1,59 @@
+#pragma once
+
+#include <chrono>
+#include <exception>
+#include <geometry_msgs/msg/wrench_stamped.hpp>
+#include <memory>
+#include <QObject>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/exceptions.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <std_msgs/msg/float32.hpp>
+#include <std_msgs/msg/string.hpp>
+#include "robotiq_ft_sensor_interfaces/srv/sensor_accessor.hpp"
+#include "tms_robot_interfaces/action/execute_task.hpp"
+#include "tms_robot_interfaces/msg/bt_node_status.hpp"
+#include "tms_robot_interfaces/msg/bt_state.hpp"
+
+class RosBridge : public QObject {
+  Q_OBJECT
+public:
+  using ExecuteTask = tms_robot_interfaces::action::ExecuteTask;
+  using GoalHandleExecuteTask = rclcpp_action::ClientGoalHandle<ExecuteTask>;
+  using ZeroForce = robotiq_ft_sensor_interfaces::srv::SensorAccessor;
+  explicit RosBridge(rclcpp::Node::SharedPtr node, QObject * parent = nullptr);
+  ~RosBridge();
+  rclcpp::Node::SharedPtr node() const { return node_; }
+  void zeroFTS();
+  void startTask(const QString & task_name, 
+    double tcp_offset_z_mm, 
+    double treatment_duration_sec,
+    double min_distance_mm,
+    const QString & force_mode);
+  void cancelTask();
+signals:
+  void taskStateUpdated(const QString & task_name, 
+    const QString & overall_state, 
+    const QString & active_node, 
+    const QString & message);
+  void btNodeStatusUpdated(const QString & node_name, 
+    const QString & node_type, 
+    const QString & status); 
+  void logMessage(const QString & msg);
+  void forceUpdated(const QString & force);
+  void distanceUpdated(const QString & distance);
+  void treatmentStatusUpdated(const QString & status);
+private:
+  rclcpp::Node::SharedPtr node_;
+  rclcpp_action::Client<ExecuteTask>::SharedPtr action_client_;
+  GoalHandleExecuteTask::SharedPtr current_goal_handle_;
+  bool task_active_{false};
+  bool cancel_in_progress_{false};
+  rclcpp::Client<ZeroForce>::SharedPtr zero_force_client_;
+  rclcpp::Subscription<tms_robot_interfaces::msg::BtNodeStatus>::SharedPtr bt_node_sub_;
+  rclcpp::Subscription<tms_robot_interfaces::msg::BtState>::SharedPtr bt_state_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr bt_log_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr force_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr distance_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr treatment_status_sub_;
+};

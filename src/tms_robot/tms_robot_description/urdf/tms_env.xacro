@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="tms_env" params="parent">
+
+    <xacro:property name="table_width" value="0.620" /> <!-- y direction -->
+    <xacro:property name="table_length" value="0.730" /> <!-- x direction -->
+    <xacro:property name="table_height" value="0.710" />
+    <xacro:property name="plate_thickness" value="0.010" />
+    <xacro:property name="table_dummy_head_offset" value="0.265" /> <!-- to be determined -->
+    <xacro:property name="table_ur_offset" value="-0.2025" />
+
+    <link name="table">
+      <visual>
+        <geometry>
+          <box size="${table_length} ${table_width} ${table_height}"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <material name="dark_grey"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="${table_length} ${table_width} ${table_height}"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+      </collision>
+    </link>
+
+    <link name="robot_mounting_plate">
+      <visual>
+        <geometry>
+          <box size="0.2 0.2 ${plate_thickness}"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <material name="white"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.2 0.2 ${plate_thickness}"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+      </collision>
+    </link>    
+
+    <link name="dummy_head">
+      <visual>
+        <geometry>
+          <mesh filename="package://tms_robot_description/meshes/adjusted_head_male_580.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <material name="white"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://tms_robot_description/meshes/adjusted_head_male_580.stl" scale="0.001 0.001 0.001"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+      </collision>
+    </link>
+
+    <link name="robot_mount"/>
+
+
+
+    <joint name="parent_to_table" type="fixed">
+      <parent link="${parent}" />
+      <child link="table" />
+      <origin xyz="0 0 ${table_height/2}" rpy="0 0 0" />
+    </joint>
+
+    <joint name="table_to_robot_mounting_plate" type="fixed">
+      <parent link="table"/>
+      <child link="robot_mounting_plate"/>
+      <origin xyz="${table_ur_offset} 0 ${table_height/2+plate_thickness/2}" rpy="0 0 0" />
+    </joint>
+
+    <joint name="robot_mounting_head" type="fixed">
+      <parent link="robot_mounting_plate"/>
+      <child link="robot_mount"/>
+      <origin xyz="0 0 ${plate_thickness/2}" rpy="0 0 ${pi}" />
+    </joint>
+
+    <joint name="table_to_dummy_head" type="fixed">
+      <parent link="table"/>
+      <child link="dummy_head"/>
+      <origin xyz="${table_dummy_head_offset} 0 ${table_height/2}" rpy="0 0 0" />
+    </joint>
+
+  </xacro:macro>
+
+</robot>

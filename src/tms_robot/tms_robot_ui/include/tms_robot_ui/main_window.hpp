@@ -1,0 +1,103 @@
+#ifndef TMS_ROBOT_UI_MAIN_WINDOW_HPP
+#define TMS_ROBOT_UI_MAIN_WINDOW_HPP
+
+#include <QMainWindow>
+#include <QLabel>
+#include <QComboBox>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QTreeWidget>
+#include <QSplitter>
+#include <QTimer>
+#include <QDoubleSpinBox>
+#include <QDomDocument>
+#include <QProcess>
+#include <QList>
+#include <QMap>
+#include <QString>
+#include <QFile>
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include "tms_robot_ui/ros_bridge.hpp"
+#include "tms_robot_ui/rviz_widget.hpp"
+#include "tms_robot_ui/camera_view_widget.hpp"
+#include "tms_robot_ui/rolling_plot_widget.hpp"
+
+class QLabel;
+class QPushButton;
+class QCheckBox;
+class QComboBox;
+class QTextEdit;
+class QTreeWidget;
+class QTreeWidgetItem;
+class QDoubleSpinBox;
+class QTimer;
+class RosBridge;
+class RvizWidget;
+
+namespace Ui {
+  class MainWindow;
+}
+
+class MainWindow : public QMainWindow {
+  Q_OBJECT
+public:
+  explicit MainWindow(rclcpp::Node::SharedPtr node, QWidget * parent = nullptr);
+  ~MainWindow();
+private slots:
+  void onZeroClicked();
+  void onStartClicked();
+  void onCancelClicked();
+  void onTaskStateUpdated(const QString & task_name, 
+    const QString & overall_state, 
+    const QString & active_node, 
+    const QString & message);
+  void onBtNodeStatusUpdated(const QString & node_name, 
+    const QString & node_type, 
+    const QString & status);
+  void onLogMessage(const QString & msg);
+  void onForceUpdated(const QString & msg);
+  void onDistanceUpdated(const QString & msg);
+  void onTreatmentUpdated(const QString & msg);
+private:
+  void buildUi();
+  void connectSignals();
+  void loadSelectedTree();
+  QString selectedTaskName() const;
+  QString selectedTreePath() const;
+  QString treePathFor(const QString & task) const;
+  QString loaded_tree_task_;
+  void loadTreeIntoWidget(const QString & xml_path);
+  QTreeWidgetItem * buildTreeItemFromDom(const class QDomElement & element);
+  void setItemColor(QTreeWidgetItem * item, const QString & status);
+  rclcpp::Node::SharedPtr node_;
+  std::unique_ptr<Ui::MainWindow> ui_;
+  RosBridge * ros_bridge_;
+  RvizWidget * rviz_widget_;
+  CameraViewWidget *camera_view_widget_;
+  QTimer * ros_spin_timer_;
+  QLabel * force_label_;
+  QLabel * distance_label_;
+  QLabel * state_label_;
+  QLabel * active_node_label_;
+  QComboBox * task_selector_;
+  QDoubleSpinBox * tcp_offset_spinbox_;
+  QDoubleSpinBox * treatment_duration_spinbox_;
+  QDoubleSpinBox * distance_guard_spinbox_;
+  QComboBox * force_mode_combo_;
+  QLabel * treatment_status_label_;
+  QPushButton * zero_button_;
+  QPushButton * start_button_;
+  QPushButton * cancel_button_;
+  QTextEdit * log_text_;
+  QTreeWidget * bt_tree_widget_;
+  QMap<QString, QTreeWidgetItem *> node_items_;
+  QCheckBox * show_developer_tasks_checkbox_{nullptr};
+  void populateTaskSelector(bool show_developer_tasks);
+  void startDemoOperator();
+  QProcess * demo_process_{nullptr};
+  RollingPlotWidget * force_plot_{nullptr};
+  RollingPlotWidget * distance_plot_{nullptr};
+};
+
+#endif // TMS_ROBOT_UI_MAIN_WINDOW_HPP
