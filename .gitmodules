@@ -1,9 +1,0 @@
-[submodule "src/rq_fts_ros2_driver"]
-	path = src/rq_fts_ros2_driver
-	url = https://github.com/panagelak/rq_fts_ros2_driver.git
-[submodule "src/tms_robot"]
-	path = src/tms_robot
-	url = https://github.com/khkoh23/tms_robot.git
-[submodule "src/uc4_adc_driver"]
-	path = src/uc4_adc_driver
-	url = https://github.com/khkoh23/uc4_adc_driver.git
