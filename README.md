@@ -90,4 +90,4 @@ No paper on this project has been published yet. To cite the software, use the "
 
 ## License
 
-The workspace is released under the Apache License 2.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Each package also carries its own license file. `rq_fts_ros2_driver` and `tms_robot_moveit_config` use BSD licenses.
+The workspace is released under the Apache License 2.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Most packages also carry their own license file. `rq_fts_ros2_driver` uses a BSD license. `tms_robot_moveit_config` declares BSD-3-Clause in its `package.xml`.
