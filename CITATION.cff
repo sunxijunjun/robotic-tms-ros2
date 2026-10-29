@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "TMS Robot Workspace"
+type: software
+authors:
+  - family-names: Koh
+    given-names: Keng Huat
+    affiliation: "Industrial Centre, The Hong Kong Polytechnic University"
+  - family-names: Sun
+    given-names: Xijun
+    affiliation: "Industrial Centre, The Hong Kong Polytechnic University"
+repository-code: "https://github.com/sunxijunjun/tms_ws"
+license: Apache-2.0
+date-released: 2026-10-29
+keywords:
+  - ROS 2
+  - transcranial magnetic stimulation
+  - robotics
+  - UR10e

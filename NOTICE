@@ -1,0 +1,7 @@
+TMS Robot Workspace
+Copyright 2026 Koh Keng Huat and Sun Xijun
+Industrial Centre, The Hong Kong Polytechnic University
+
+This product includes the Robotiq force torque sensor driver in
+src/rq_fts_ros2_driver, Copyright (c) 2013, ROS-Industrial, under its own
+BSD license.

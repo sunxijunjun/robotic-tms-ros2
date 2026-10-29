@@ -68,6 +68,26 @@ The scripts in the workspace root call MoveIt services only and do not move the 
 - `plan_check.py` plans the `move_arm_ready` legs and prints the TCP distance to the head along the path.
 - `retract_check.py` computes the 0.10 m retract path along TCP Z and checks the joint path for configuration jumps.
 
+## Authors
+
+- Koh Keng Huat, Industrial Centre, The Hong Kong Polytechnic University
+- Sun Xijun, Industrial Centre, The Hong Kong Polytechnic University
+
+The force torque sensor driver in `rq_fts_ros2_driver` comes from the [ROS 1 Robotiq driver](https://github.com/ros-industrial/robotiq) and its ROS 2 port. The original authors and licenses of that driver are kept.
+
+## Citation
+
+No paper on this project has been published yet. To cite the software, use the "Cite this repository" button on GitHub or the metadata in [CITATION.cff](CITATION.cff):
+
+```bibtex
+@software{koh_sun_tms_ws_2026,
+  author = {Koh, Keng Huat and Sun, Xijun},
+  title  = {{TMS Robot Workspace}},
+  year   = {2026},
+  url    = {https://github.com/sunxijunjun/tms_ws}
+}
+```
+
 ## License
 
-Each package carries its own license file. The `tms_robot` packages and `uc4_adc_driver` use Apache-2.0. `rq_fts_ros2_driver` and `tms_robot_moveit_config` use BSD licenses.
+The workspace is released under the Apache License 2.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Each package also carries its own license file. `rq_fts_ros2_driver` and `tms_robot_moveit_config` use BSD licenses.
