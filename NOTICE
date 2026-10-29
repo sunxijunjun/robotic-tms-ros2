@@ -1,7 +1,9 @@
-TMS Robot Workspace
-Copyright 2026 Koh Keng Huat and Sun Xijun
-Industrial Centre, The Hong Kong Polytechnic University
+Robotic TMS: ROS 2 Robot-Assisted Transcranial Magnetic Stimulation
+Required Notice: Copyright 2026 Koh Keng Huat and Sun Xijun, Industrial Centre, The Hong Kong Polytechnic University (https://github.com/sunxijunjun/robotic-tms-ros2)
+
+Licensed under the PolyForm Noncommercial License 1.0.0 (see LICENSE).
+Commercial use requires written permission from the authors.
 
 This product includes the Robotiq force torque sensor driver in
 src/rq_fts_ros2_driver, Copyright (c) 2013, ROS-Industrial, under its own
-BSD license.
+BSD license. That driver is not covered by the PolyForm license.

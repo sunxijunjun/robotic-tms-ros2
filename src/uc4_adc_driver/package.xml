@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="khkoh23@gmail.com">koh</maintainer>
-  <license>Apache-2.0</license>
+  <license>PolyForm-Noncommercial-1.0.0</license>
 
   <depend>python3-serial</depend>
   <depend>rclpy</depend>

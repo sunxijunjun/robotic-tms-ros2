@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>This is the UR robot hardware interface package for Transcranial Magnetic Stimulation Robot</description>
   <maintainer email="khkoh23@gmail.com">khkoh</maintainer>
-  <license>Apache-2.0</license>
+  <license>PolyForm-Noncommercial-1.0.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

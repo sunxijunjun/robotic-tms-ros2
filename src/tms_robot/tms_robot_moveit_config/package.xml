@@ -8,7 +8,7 @@
   </description>
   <maintainer email="khkoh23@gmail.com">khkoh</maintainer>
 
-  <license>BSD-3-Clause</license>
+  <license>PolyForm-Noncommercial-1.0.0</license>
 
   <url type="website">http://moveit.ros.org/</url>
   <url type="bugtracker">https://github.com/moveit/moveit2/issues</url>

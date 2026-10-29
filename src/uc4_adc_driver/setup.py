@@ -18,7 +18,7 @@ setup(
     maintainer='koh',
     maintainer_email='khkoh23@gmail.com',
     description='TODO: Package description',
-    license='Apache-2.0',
+    license='PolyForm-Noncommercial-1.0.0',
     extras_require={
         'test': [
             'pytest',

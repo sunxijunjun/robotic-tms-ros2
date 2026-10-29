@@ -1,6 +1,6 @@
-# TMS Robot Workspace
+# Robotic TMS: ROS 2 Robot-Assisted Transcranial Magnetic Stimulation with UR10e and Force Control
 
-ROS 2 Jazzy workspace for a robot-assisted Transcranial Magnetic Stimulation (TMS) system. A UR10e arm carries the TMS coil to a target pose on the head. A Robotiq FT-300S force torque sensor keeps contact force in a set band during treatment. A behaviour tree runs the session, and a Qt control panel shows the camera view, RViz, and the tree state.
+ROS 2 Jazzy software for robot-assisted Transcranial Magnetic Stimulation (TMS), also called robotic TMS or TMS robot coil positioning. A UR10e arm carries the TMS coil to a target pose on the head. A Robotiq FT-300S force torque sensor keeps contact force in a set band during treatment. A behaviour tree runs the session, and a Qt control panel shows the camera view, RViz, and the tree state.
 
 ![TMS robot demo, 8x speed](docs/media/tms_robot_demo.gif)
 
@@ -32,6 +32,7 @@ The demo shows one session in order:
 ## Build
 
 ```bash
+git clone https://github.com/sunxijunjun/robotic-tms-ros2.git ~/tms_ws
 cd ~/tms_ws
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
@@ -80,14 +81,16 @@ The force torque sensor driver in `rq_fts_ros2_driver` comes from the [ROS 1 Rob
 No paper on this project has been published yet. To cite the software, use the "Cite this repository" button on GitHub or the metadata in [CITATION.cff](CITATION.cff):
 
 ```bibtex
-@software{koh_sun_tms_ws_2026,
+@software{koh_sun_robotic_tms_2026,
   author = {Koh, Keng Huat and Sun, Xijun},
-  title  = {{TMS Robot Workspace}},
+  title  = {{Robotic TMS: ROS 2 Robot-Assisted Transcranial Magnetic Stimulation}},
   year   = {2026},
-  url    = {https://github.com/sunxijunjun/tms_ws}
+  url    = {https://github.com/sunxijunjun/robotic-tms-ros2}
 }
 ```
 
 ## License
 
-The workspace is released under the Apache License 2.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). Most packages also carry their own license file. `rq_fts_ros2_driver` uses a BSD license. `tms_robot_moveit_config` declares BSD-3-Clause in its `package.xml`.
+The software is released under the [PolyForm Noncommercial License 1.0.0](LICENSE) for academic, research, teaching, and other noncommercial use. Commercial use is not permitted without written permission from the authors. The `tms_robot` packages and `uc4_adc_driver` carry the same license.
+
+The Robotiq driver in `rq_fts_ros2_driver` is not covered by the PolyForm license. That driver keeps its original BSD license from ROS-Industrial (see [NOTICE](NOTICE)).

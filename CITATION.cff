@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "TMS Robot Workspace"
+title: "Robotic TMS: ROS 2 Robot-Assisted Transcranial Magnetic Stimulation"
 type: software
 authors:
   - family-names: Koh
@@ -9,11 +9,18 @@ authors:
   - family-names: Sun
     given-names: Xijun
     affiliation: "Industrial Centre, The Hong Kong Polytechnic University"
-repository-code: "https://github.com/sunxijunjun/tms_ws"
-license: Apache-2.0
+repository-code: "https://github.com/sunxijunjun/robotic-tms-ros2"
+license: PolyForm-Noncommercial-1.0.0
 date-released: 2026-10-29
+abstract: "ROS 2 Jazzy software for robot-assisted transcranial magnetic stimulation (TMS). A UR10e arm positions the TMS coil from a camera target, and a Robotiq FT-300S force torque sensor holds the coil contact force during treatment."
 keywords:
-  - ROS 2
+  - robotic TMS
+  - robot-assisted transcranial magnetic stimulation
   - transcranial magnetic stimulation
-  - robotics
+  - TMS coil positioning
+  - ROS 2
+  - MoveIt 2
   - UR10e
+  - force control
+  - behaviour tree
+  - medical robotics
